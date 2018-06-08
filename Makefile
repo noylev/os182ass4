@@ -175,6 +175,9 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_sanity\
+	_fsan\
+	_find\
+	_ftag\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

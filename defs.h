@@ -190,3 +190,8 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+// Task 3
+int             fs_ftag(struct file*, char*, char*);
+int             fs_funtag(struct file*, char*);
+int             fs_gettag(struct file*,char*,char*);

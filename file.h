@@ -23,6 +23,9 @@ struct inode {
   short nlink;
   uint size;
   uint addrs[NDIRECT+2];   // Data block addresses
+  uint tags;		 // tags block 
+  uint tags_counter;	 // allocated tags counter
+
 };
 
 // table mapping major device number to

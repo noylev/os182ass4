@@ -232,6 +232,8 @@ iupdate(struct inode *ip)
   dip->nlink = ip->nlink;
   dip->size = ip->size;
   memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
+  dip->tags = ip->tags;
+  dip->tags_counter = ip->tags_counter;
   log_write(bp);
   brelse(bp);
 }
@@ -696,4 +698,155 @@ struct inode*
 nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
+}
+int
+fs_ftag(struct file *file_ptr, char *key, char *val) {
+
+    struct inode *ip;
+    struct buf *bp;
+    int i, j;
+    int empty;
+
+    empty = -1;
+    ip = file_ptr->ip;
+    ilock(ip);
+
+    if ((ip->tags_counter == 0) && (ip->tags == 0)) {
+        /* first tag */
+        ip->tags = balloc(ip->dev);
+    }
+
+    bp = bread(ip->dev, ip->tags);
+
+    i = 0;
+    j = 0;
+    while (i < ip->tags_counter) {
+        if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
+            !(memcmp(key, &(bp->data[j]), strlen(key)))) {/* key found */
+            memset(&bp->data[j+10], 0, 30);
+            memmove(&bp->data[j+10], val, strlen(val));
+            ip->tags_counter++;
+            log_write(bp);
+            brelse(bp);
+            iupdate(ip);
+            iunlock(ip);
+            return 0;
+        }
+        if (bp->data[j] == 0) {
+            if (empty == -1)
+                empty = j;
+            i--;
+        }
+        i++;
+        j += 40;
+    }
+
+    if (empty == -1)
+        empty = j;
+
+
+    memset(&bp->data[empty], 0, 40);
+    memmove(&bp->data[empty], key, strlen(key));
+    memmove(&bp->data[empty+10], val, strlen(val));
+    ip->tags_counter++;
+    log_write(bp);
+    brelse(bp);
+    iupdate(ip);
+    iunlock(ip);
+    return 0;
+
+
+
+}
+
+//A&T
+int fs_funtag(struct file *file_ptr, char* key) {
+    struct inode *ip;
+    struct buf *bp;
+    int i, j;
+
+    ip = file_ptr->ip;
+    ilock(ip);
+
+    if ((ip->tags_counter == 0) || (ip->tags == 0)) {
+        /* first tag */
+        iunlock(ip);
+        return -1;
+    }
+
+    bp = bread(ip->dev, ip->tags);
+
+    i = 0;
+    j = 0;
+    while (i < ip->tags_counter) {
+        if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
+            !(memcmp(key, &(bp->data[j]), strlen(key)))) {/* key found */
+            memset(&bp->data[j], 0, 40);                  /* delete
+                                                             whole entry */
+            ip->tags_counter--;
+            log_write(bp);
+            brelse(bp);
+            iupdate(ip);
+            iunlock(ip);
+            return 0;
+        }
+        if (bp->data[j] == 0)
+            i--;
+
+        i++;
+        j += 40;
+    }
+
+    brelse(bp);
+    iunlock(ip);
+    return -1;
+}
+
+//A&T
+int
+fs_gettag(struct file *file_ptr,char *key,char *buf) {
+    struct inode *ip;
+    struct buf *bp;
+    int i, j;
+
+    K_DEBUG_PRINT(6,"inside fs_gettag. key = %s, file_ptr = %x",key,(int)file_ptr);
+    ip = file_ptr->ip;
+    ilock(ip);
+
+    K_DEBUG_PRINT(6,"pre: tags = %x,tags_counter = %d",(int)ip->tags,ip->tags_counter);
+
+    if ((ip->tags_counter == 0) || (ip->tags == 0)) {
+        /* first tag */
+        iunlock(ip);
+        return -1;
+    }
+    K_DEBUG_PRINT(6,"post: tags = %x,tags_counter = %d",(int)ip->tags,ip->tags_counter);
+
+    bp = bread(ip->dev, ip->tags);
+    i = 0;
+    j = 0;
+    while (i < ip->tags_counter) {
+        K_DEBUG_PRINT(6,"while i = %d,j = %d,tags_counter = %d",i,j,ip->tags_counter);
+        if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
+            !(memcmp(key, &(bp->data[j]), strlen(key)))) {/* key found */
+            memmove(buf,&bp->data[j+10], 30);                  /* copy
+                                                             value */
+            log_write(bp);
+            brelse(bp);
+            iupdate(ip);
+            iunlock(ip);
+            return strlen(buf);
+        }
+        if (bp->data[j] == 0)
+            i--;
+
+        i++;
+        j += 40;
+    }
+
+    log_write(bp);
+    brelse(bp);
+    iupdate(ip);
+    iunlock(ip);
+    return -1;
 }

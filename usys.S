@@ -32,3 +32,7 @@ SYSCALL(uptime)
 
 SYSCALL(readlink)
 SYSCALL(symlink)
+
+SYSCALL(ftag)
+SYSCALL(funtag)
+SYSCALL(gettag)
