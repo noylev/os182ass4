@@ -156,7 +156,7 @@ int             fetchint(uint, int*);
 int             fetchstr(uint, char**);
 void            syscall(void);
 
-int             k_readlink(char*, char*, uint);
+int             read_link_to_buf(char*, char*, uint);
 
 // timer.c
 void            timerinit(void);

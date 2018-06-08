@@ -379,7 +379,7 @@ sys_chdir(void)
   if(argstr(0, &path) < 0)
       return -1;
 
-  if ((k_readlink(path, sym_path, DIRSIZ)) != -1) {
+  if ((read_link_to_buf(path, sym_path, DIRSIZ)) != -1) {
       if ((ip = namei(sym_path)) == 0)
           return -1;
   }
@@ -500,57 +500,25 @@ sys_readlink(void)
   char *path;
   char *buf;
   uint bufsiz;
-  struct inode *ip, *sym_ip;
-  int i;
 
   if(argstr(0, &path) < 0 || argstr(1, &buf) < 0  || argint(2, (int*)&bufsiz) < 0)
     return -1;
 
-  if((ip = namei(path)) == 0)
-    return -1;
-  ilock(ip);
-
-  if (!(ip->type != FD_SYMLNK)){
-      iunlock(ip);
-      return -1;
-  }
-
-  for (i = 0; i < MAX_DEREFERENCE ; i++) {
-    if((sym_ip = namei((char*)ip->addrs)) == 0) {
-      // Failed - broken link.
-      iunlock(ip);
-      return -2;
-    }
-    if (sym_ip->type != FD_SYMLNK) {
-      iunlock(ip);
-      ip = sym_ip;
-      ilock(ip);
-    }
-    else {
-      break;
-    }
-  }
-  if (i == MAX_DEREFERENCE) {
-    panic("symbolic link exceeds 16 links ");
-  }
-
-
-  if (ip->type == T_FILE) {
-    safestrcpy(buf, (char*)ip->addrs, bufsiz);
-    iunlock(ip);
-    return strlen(buf);
-  }
-  iunlock(ip);
-  return -1;
+  return read_link_to_buf(path, buf, bufsiz);
 }
 
 
-//A&T stores the target name in buf - for use by kernel (not syscall)
+// Saves the target name in buf. (Not syscall)
 int
-k_readlink(char* path, char* buf, uint bufsiz)
+read_link_to_buf(char* path, char* buf, uint bufsiz)
 {
   struct inode *ip, *sym_ip;
   int i;
+
+  if (strlen(path) > bufsiz) {
+    // Path too long.
+    return -1;
+  }
 
   if((ip = namei(path)) == 0)
     return -1;
@@ -561,7 +529,7 @@ k_readlink(char* path, char* buf, uint bufsiz)
     return -1;
   }
 
-  for (i=0;i < MAX_DEREFERENCE ; i++) {
+  for (i = 0; i < MAX_DEREFERENCE ; i++) {
     if((sym_ip = namei((char*)ip->addrs)) == 0) {
       iunlock(ip);
       return -1;
@@ -576,9 +544,8 @@ k_readlink(char* path, char* buf, uint bufsiz)
     }
   }
   if (i == MAX_DEREFERENCE) {
-      panic("symbolic link exceeds 16 links ");
+    panic("symbolic link exceeds MAX_DEREFERENCE ");
   }
-
 
   if(ip->type == T_FILE){
     safestrcpy(buf, (char*)ip->addrs, bufsiz);
