@@ -600,7 +600,7 @@ read_link_to_buf(char* path, char* buf, uint bufsiz)
 }
 
 
-/* A&T tags */
+// Task 3
 int
 sys_ftag(void) {
     int fd, ret;
@@ -611,18 +611,9 @@ sys_ftag(void) {
     if(argfd(0, &fd, &file_ptr) < 0 || argstr(1, &key) < 0  || argstr(2, &val) < 0)
         return -1;
 
-    K_DEBUG_PRINT(7, "fd = %d, key = %s, val = %s", fd, key, val);
-
-    begin_trans();
-    K_DEBUG_PRINT(7, "began transaction", 999);
-
+    begin_op();
     ret = fs_ftag(file_ptr, key, val);
-
-    K_DEBUG_PRINT(7, "fs_ftag done", 999);
-
-    commit_trans();
-
-    K_DEBUG_PRINT(7, "transaction commited.", 999);
+    end_op();
     return ret;
 }
 
@@ -634,9 +625,9 @@ int sys_funtag(void) {
     if(argfd(0, &fd, &file_ptr) < 0 || argstr(1, &key) < 0)
         return -1;
 
-    begin_trans();
+    begin_op();
     ret = fs_funtag(file_ptr, key);
-    commit_trans();
+    end_op();
     return ret;
 }
 
@@ -648,10 +639,9 @@ int sys_gettag(void) {
 
     if(argfd(0, &fd, &file_ptr) < 0 || argstr(1, &key) < 0 || argstr(2, &buf) < 0)
         return -1;
-    K_DEBUG_PRINT(6, "inside sys_gettag. key = %s, file_ptr = %x.",key,(int)file_ptr);
-    begin_trans();
 
-    ret =fs_gettag(file_ptr,key,buf);
-    commit_trans();
+    begin_op();
+    ret = fs_gettag(file_ptr,key,buf);
+    end_op();
     return ret;
 }
