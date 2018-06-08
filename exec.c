@@ -23,11 +23,11 @@ exec(char *path, char **argv)
 
   begin_op();
   int result = read_link_to_buf(path, sym_path, FILENAMESIZE);
-  if (DEBUG > 0) cprintf("exec: got %s as sym_path from path %s, result %d\n", sym_path, path, result);
+  if (DEBUG > 1) cprintf("exec: got %s as sym_path from path %s, result %d\n", sym_path, path, result);
   if (result > -1) {
     // Is symbolic link, is it valid?
     if ((ip = namei(sym_path)) == 0) {
-      if (DEBUG > 0) cprintf("exec: failed resolving sym_path %s", sym_path);
+      if (DEBUG > 1) cprintf("exec: failed resolving sym_path %s", sym_path);
       // Error.
       end_op();
       cprintf("exec: fail\n");
