@@ -711,8 +711,7 @@ fs_ftag(struct file *file_ptr, char *key, char *val) {
     ip = file_ptr->ip;
     ilock(ip);
 
-    if ((ip->tags_counter == 0) && (ip->tags == 0)) {
-        /* first tag */
+    if ((ip->tags_counter == 0) && (ip->tags == 0)) {        
         ip->tags = balloc(ip->dev);
     }
 
@@ -722,7 +721,7 @@ fs_ftag(struct file *file_ptr, char *key, char *val) {
     j = 0;
     while (i < ip->tags_counter) {
         if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
-            !(memcmp(key, &(bp->data[j]), strlen(key)))) {/* key found */
+            !(memcmp(key, &(bp->data[j]), strlen(key)))) {
             memset(&bp->data[j+10], 0, 30);
             memmove(&bp->data[j+10], val, strlen(val));
             ip->tags_counter++;
@@ -768,8 +767,7 @@ int fs_funtag(struct file *file_ptr, char* key) {
     ip = file_ptr->ip;
     ilock(ip);
 
-    if ((ip->tags_counter == 0) || (ip->tags == 0)) {
-        /* first tag */
+    if ((ip->tags_counter == 0) || (ip->tags == 0)) {        
         iunlock(ip);
         return -1;
     }
@@ -780,9 +778,9 @@ int fs_funtag(struct file *file_ptr, char* key) {
     j = 0;
     while (i < ip->tags_counter) {
         if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
-            !(memcmp(key, &(bp->data[j]), strlen(key)))) {/* key found */
-            memset(&bp->data[j], 0, 40);                  /* delete
-                                                             whole entry */
+            !(memcmp(key, &(bp->data[j]), strlen(key)))) {
+            memset(&bp->data[j], 0, 40);                  
+                                                           
             ip->tags_counter--;
             log_write(bp);
             brelse(bp);
@@ -802,35 +800,35 @@ int fs_funtag(struct file *file_ptr, char* key) {
     return -1;
 }
 
-//A&T
+
 int
 fs_gettag(struct file *file_ptr,char *key,char *buf) {
     struct inode *ip;
     struct buf *bp;
     int i, j;
 
-    K_DEBUG_PRINT(6,"inside fs_gettag. key = %s, file_ptr = %x",key,(int)file_ptr);
+
     ip = file_ptr->ip;
     ilock(ip);
 
-    K_DEBUG_PRINT(6,"pre: tags = %x,tags_counter = %d",(int)ip->tags,ip->tags_counter);
+  
 
     if ((ip->tags_counter == 0) || (ip->tags == 0)) {
         /* first tag */
         iunlock(ip);
         return -1;
     }
-    K_DEBUG_PRINT(6,"post: tags = %x,tags_counter = %d",(int)ip->tags,ip->tags_counter);
+ 
 
     bp = bread(ip->dev, ip->tags);
     i = 0;
     j = 0;
     while (i < ip->tags_counter) {
-        K_DEBUG_PRINT(6,"while i = %d,j = %d,tags_counter = %d",i,j,ip->tags_counter);
+       
         if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
-            !(memcmp(key, &(bp->data[j]), strlen(key)))) {/* key found */
-            memmove(buf,&bp->data[j+10], 30);                  /* copy
-                                                             value */
+            !(memcmp(key, &(bp->data[j]), strlen(key)))) {
+            memmove(buf,&bp->data[j+10], 30);                  
+                                                             
             log_write(bp);
             brelse(bp);
             iupdate(ip);
