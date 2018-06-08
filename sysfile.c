@@ -375,12 +375,12 @@ sys_chdir(void)
   char *path;
   struct inode *ip;
   struct proc *curproc = myproc();
-  
+  char sym_path[MAX_LNK_NAME];
+
   begin_op();
-  if(argstr(0, &path) < 0 || (ip = namei(path)) == 0){
-    end_op();
-    return -1;
-  }
+  if(argstr(0, &path) < 0)
+      return -1;
+
   ilock(ip);
   if(ip->type != T_DIR){
     iunlockput(ip);
@@ -442,4 +442,99 @@ sys_pipe(void)
   fd[0] = fd0;
   fd[1] = fd1;
   return 0;
+}
+
+// Task 2
+int
+sys_symlink(void)
+{
+  char *target, *path;
+  struct file *f;
+  struct inode *ip;
+
+  if (argstr(0, &target) < 0 || argstr(1, &path) < 0)
+    return -1;
+
+  begin_op();
+  ip = create(path, T_FILE, 0, 0);
+  end_op();
+
+  if(ip == 0)
+    return -1;
+
+  // Maybe?
+  ilock(ip);
+
+  if ((f = filealloc()) == 0) {
+    if (f)
+      fileclose(f);
+    iunlockput(ip);
+    return -1;
+  }
+
+  // Change the inode.
+  if (strlen(target) > DIRSIZ)
+    panic("Symbolic link path is too long ");
+
+  safestrcpy((char*)ip->addrs, target, DIRSIZ);
+  ip->size = 0;
+  iunlock(ip);
+
+  f->type = FD_SYMLNK;
+  f->ip = ip;
+  f->off = 0;
+  f->readable = 1;
+  f->writable = 0;
+
+  return 0;
+}
+
+int
+sys_readlink(void)
+{
+  char *path;
+  char *buf;
+  uint bufsiz;
+  struct inode *ip, *sym_ip;
+  int i;
+
+  if(argstr(0, &path) < 0 || argstr(1, &buf) < 0  || argint(2, (int*)&bufsiz) < 0)
+    return -1;
+
+  if((ip = namei(path)) == 0)
+    return -1;
+  ilock(ip);
+
+  if (!(ip->type != FD_SYMLNK)){
+      iunlock(ip);
+      return -1;
+  }
+
+  for (i = 0; i < MAX_DEREFERENCE ; i++) {
+    if((sym_ip = namei((char*)ip->addrs)) == 0) {
+      // Failed - broken link.
+      iunlock(ip);
+      return -2;
+    }
+    if (sym_ip->type != FD_SYMLNK) {
+      iunlock(ip);
+      ip = sym_ip;
+      ilock(ip);
+    }
+    else {
+      break;
+    }
+  }
+  if (i == MAX_DEREFERENCE) {
+    panic("symbolic link exceeds 16 links ");
+  }
+
+
+  if (ip->type == T_FILE) {
+    safestrcpy(buf, (char*)ip->addrs, bufsiz);
+    iunlock(ip);
+    return strlen(buf);
+  }
+  iunlock(ip);
+  return -1;
 }
