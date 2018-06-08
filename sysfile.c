@@ -373,24 +373,29 @@ int
 sys_chdir(void)
 {
   char *path;
+  char sym_path[DIRSIZ];
   struct inode *ip;
-  struct proc *curproc = myproc();
-  char sym_path[MAX_LNK_NAME];
 
-  begin_op();
   if(argstr(0, &path) < 0)
       return -1;
+
+  if ((k_readlink(path, sym_path, DIRSIZ)) != -1) {
+      if ((ip = namei(sym_path)) == 0)
+          return -1;
+  }
+  else {
+    if ((ip = namei(path)) == 0)
+      return -1;
+  }
 
   ilock(ip);
   if(ip->type != T_DIR){
     iunlockput(ip);
-    end_op();
     return -1;
   }
   iunlock(ip);
-  iput(curproc->cwd);
-  end_op();
-  curproc->cwd = ip;
+  iput(myproc()->cwd);
+  myproc()->cwd = ip;
   return 0;
 }
 
@@ -531,6 +536,51 @@ sys_readlink(void)
 
 
   if (ip->type == T_FILE) {
+    safestrcpy(buf, (char*)ip->addrs, bufsiz);
+    iunlock(ip);
+    return strlen(buf);
+  }
+  iunlock(ip);
+  return -1;
+}
+
+
+//A&T stores the target name in buf - for use by kernel (not syscall)
+int
+k_readlink(char* path, char* buf, uint bufsiz)
+{
+  struct inode *ip, *sym_ip;
+  int i;
+
+  if((ip = namei(path)) == 0)
+    return -1;
+  ilock(ip);
+
+  if (!(ip->type == FD_SYMLNK)){
+    iunlock(ip);
+    return -1;
+  }
+
+  for (i=0;i < MAX_DEREFERENCE ; i++) {
+    if((sym_ip = namei((char*)ip->addrs)) == 0) {
+      iunlock(ip);
+      return -1;
+    }
+    if (sym_ip->type == FD_SYMLNK) {
+      iunlock(ip);
+      ip = sym_ip;
+      ilock(ip);
+    }
+    else {
+      break;
+    }
+  }
+  if (i == MAX_DEREFERENCE) {
+      panic("symbolic link exceeds 16 links ");
+  }
+
+
+  if(ip->type == T_FILE){
     safestrcpy(buf, (char*)ip->addrs, bufsiz);
     iunlock(ip);
     return strlen(buf);
