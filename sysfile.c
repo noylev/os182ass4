@@ -534,6 +534,7 @@ read_link_to_buf(char* path, char* buf, uint bufsiz)
       iunlock(ip);
       return -1;
     }
+
     if (sym_ip->type == FD_SYMLNK) {
       iunlock(ip);
       ip = sym_ip;
@@ -543,6 +544,7 @@ read_link_to_buf(char* path, char* buf, uint bufsiz)
       break;
     }
   }
+
   if (i == MAX_DEREFERENCE) {
     panic("symbolic link exceeds MAX_DEREFERENCE ");
   }
