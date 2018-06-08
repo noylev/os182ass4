@@ -13,3 +13,4 @@
 #define FSSIZE       32768  // size of file system in blocks -changed by Noy
 #define MAX_DEREFERENCE 31
 #define DEBUG 1
+#define FILENAMESIZE 512

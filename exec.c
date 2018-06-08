@@ -18,14 +18,32 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
+  char sym_path[FILENAMESIZE];
+
 
   begin_op();
-
-  if((ip = namei(path)) == 0){
-    end_op();
-    cprintf("exec: fail\n");
-    return -1;
+  int result = read_link_to_buf(path, sym_path, FILENAMESIZE);
+  if (DEBUG > 0) cprintf("exec: got %s as sym_path from path %s, result %d\n", sym_path, path, result);
+  if (result > -1) {
+    // Is symbolic link, is it valid?
+    if ((ip = namei(sym_path)) == 0) {
+      if (DEBUG > 0) cprintf("exec: failed resolving sym_path %s", sym_path);
+      // Error.
+      end_op();
+      cprintf("exec: fail\n");
+      return -1;
+    }
   }
+  else {
+    // Load the inode.
+    if ((ip = namei(path)) == 0) {
+      // Not found!
+        end_op();
+        cprintf("exec: fail\n");
+        return -1;
+    }
+  }
+
   ilock(ip);
   pgdir = 0;
 

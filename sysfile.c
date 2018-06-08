@@ -373,14 +373,14 @@ int
 sys_chdir(void)
 {
   char *path;
-  char sym_path[DIRSIZ];
+  char sym_path[FILENAMESIZE];
   struct inode *ip;
 
   if(argstr(0, &path) < 0)
     return -1;
 
   // Check if this is a symbolic link.
-  int result = read_link_to_buf(path, sym_path, DIRSIZ);
+  int result = read_link_to_buf(path, sym_path, FILENAMESIZE);
   if (DEBUG > 1) cprintf("CHDIR: got %s as sym_path from path %s, result %d\n", sym_path, path, result);
   if (result > -1) {
     // Is symbolic link, is it valid?
@@ -488,10 +488,10 @@ sys_symlink(void)
   }
 
   // Change the inode.
-  if (strlen(target) > DIRSIZ)
+  if (strlen(target) > FILENAMESIZE)
     panic("Symbolic link path is too long ");
 
-  safestrcpy((char*)ip->addrs, target, DIRSIZ);
+  safestrcpy((char*)ip->addrs, target, FILENAMESIZE);
   ip->size = 0;
   iunlock(ip);
 
@@ -527,7 +527,7 @@ read_link_to_buf(char* path, char* buf, uint bufsiz)
 
   if (DEBUG > 1) cprintf("SYMLINK: checking path %s\n", path);
 
-  if (strlen(path) > DIRSIZ) {
+  if (strlen(path) > FILENAMESIZE) {
     // Path too long.
     return -1;
   }
