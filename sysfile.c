@@ -377,19 +377,31 @@ sys_chdir(void)
   struct inode *ip;
 
   if(argstr(0, &path) < 0)
-      return -1;
+    return -1;
 
-  if ((read_link_to_buf(path, sym_path, DIRSIZ)) != -1) {
-      if ((ip = namei(sym_path)) == 0)
-          return -1;
+  // Check if this is a symbolic link.
+  int result = read_link_to_buf(path, sym_path, DIRSIZ);
+  if (DEBUG > 1) cprintf("CHDIR: got %s as sym_path from path %s, result %d\n", sym_path, path, result);
+  if (result > -1) {
+    // Is symbolic link, is it valid?
+    if ((ip = namei(sym_path)) == 0) {
+      if (DEBUG > 1) cprintf("CHDIR: failed resolving sym_path %s", sym_path);
+      // Error.
+      return -1;
+    }
   }
   else {
-    if ((ip = namei(path)) == 0)
+    // Load the inode.
+    if ((ip = namei(path)) == 0) {
+      // Not found!
       return -1;
+    }
   }
 
   ilock(ip);
   if(ip->type != T_DIR){
+    // Not a directory.
+    if (DEBUG > 1) cprintf("CHDIR: ip->type not T_DIR, is %d\n", ip->type);
     iunlockput(ip);
     return -1;
   }
@@ -457,18 +469,16 @@ sys_symlink(void)
   struct file *f;
   struct inode *ip;
 
+
   if (argstr(0, &target) < 0 || argstr(1, &path) < 0)
     return -1;
 
   begin_op();
-  ip = create(path, T_FILE, 0, 0);
+  ip = create(path, T_SYMLINK, 0, 0);
   end_op();
 
   if(ip == 0)
     return -1;
-
-  // Maybe?
-  ilock(ip);
 
   if ((f = filealloc()) == 0) {
     if (f)
@@ -515,27 +525,34 @@ read_link_to_buf(char* path, char* buf, uint bufsiz)
   struct inode *ip, *sym_ip;
   int i;
 
-  if (strlen(path) > bufsiz) {
+  if (DEBUG > 1) cprintf("SYMLINK: checking path %s\n", path);
+
+  if (strlen(path) > DIRSIZ) {
     // Path too long.
     return -1;
   }
 
-  if((ip = namei(path)) == 0)
+  if((ip = namei(path)) == 0) {
+    if (DEBUG > 1) cprintf("SYMLINK: namei is empty for %s\n", path);
     return -1;
+  }
   ilock(ip);
 
-  if (!(ip->type == FD_SYMLNK)){
+  if (!(ip->type == T_SYMLINK)) {
+    if (DEBUG > 1) cprintf("SYMLINK: %s not a symlink.\n", path);
     iunlock(ip);
     return -1;
   }
 
   for (i = 0; i < MAX_DEREFERENCE ; i++) {
     if((sym_ip = namei((char*)ip->addrs)) == 0) {
+      if (DEBUG > 1) cprintf("SYMLINK: could not load address %s.\n", (char*) ip->addrs);
       iunlock(ip);
       return -1;
     }
+      if (DEBUG > 1) cprintf("SYMLINK: loaded address %s.\n", (char*) ip->addrs);
 
-    if (sym_ip->type == FD_SYMLNK) {
+    if (sym_ip->type == T_SYMLINK) {
       iunlock(ip);
       ip = sym_ip;
       ilock(ip);
@@ -548,12 +565,17 @@ read_link_to_buf(char* path, char* buf, uint bufsiz)
   if (i == MAX_DEREFERENCE) {
     panic("symbolic link exceeds MAX_DEREFERENCE ");
   }
+  ilock(sym_ip);
+  if (DEBUG > 1) cprintf("SYMLINK: final sym_ip->type = %d.\n", sym_ip->type);
 
-  if(ip->type == T_FILE){
+  if (sym_ip->type == T_FILE || sym_ip->type == T_DIR) {
     safestrcpy(buf, (char*)ip->addrs, bufsiz);
     iunlock(ip);
+    iunlock(sym_ip);
+    if (DEBUG > 1) cprintf("SYMLINK: final result: %s.\n", buf);
     return strlen(buf);
   }
   iunlock(ip);
+  iunlock(sym_ip);
   return -1;
 }

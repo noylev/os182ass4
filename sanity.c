@@ -8,8 +8,6 @@
 #include "traps.h"
 #include "memlayout.h"
 
-#define DEBUG 0
-
 char name[3];
 char *echoargv[] = { "echo", "ALL", "TESTS", "PASSED", 0 };
 int stdout = 1;

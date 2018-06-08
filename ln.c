@@ -18,7 +18,7 @@ main(int argc, char *argv[])
     && (argv[1][2] == 0))
     {
       if (strlen(argv[2]) > 50) {
-        printf(2, "link failed , %s too long(max length 50)\n", argv[2]);
+        printf(2, "link failed , %s too long(max length %d)\n", argv[2], 50);
       }
       if (symlink(argv[2], argv[3]) < 0)
         printf(2, "link -s %s %s: failed\n", argv[2], argv[3]);
