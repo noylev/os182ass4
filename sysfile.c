@@ -290,6 +290,7 @@ sys_open(void)
   int fd, omode;
   struct file *f;
   struct inode *ip;
+  char sym_path[FILENAMESIZE];
 
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
@@ -302,10 +303,28 @@ sys_open(void)
       end_op();
       return -1;
     }
-  } else {
-    if((ip = namei(path)) == 0){
-      end_op();
-      return -1;
+  }
+  else {
+    int result = read_link_to_buf(path, sym_path, FILENAMESIZE);
+    if (DEBUG > 1) cprintf("open: got %s as sym_path from path %s, result %d\n", sym_path, path, result);
+    if (result > -1) {
+      // Is symbolic link, is it valid?
+      if ((ip = namei(sym_path)) == 0) {
+        if (DEBUG > 0) cprintf("open: failed resolving sym_path %s", sym_path);
+        // Error.
+        end_op();
+        cprintf("open: fail\n");
+        return -1;
+      }
+    }
+    else {
+      // Load the inode.
+      if ((ip = namei(path)) == 0) {
+        if (DEBUG > 0) cprintf("open: failed opening path %s", path);
+        // Not found!
+          end_op();
+          return -1;
+      }
     }
     ilock(ip);
     if(ip->type == T_DIR && omode != O_RDONLY){
