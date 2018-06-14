@@ -37,7 +37,7 @@ struct dinode {
 // task 3
   uint tags;
   uint tags_counter;
-  char padding[60];      // some padding
+  char padding[52];      // some padding
 };
 
 // Inodes per block.

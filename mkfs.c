@@ -80,7 +80,9 @@ main(int argc, char *argv[])
     fprintf(stderr, "Usage: mkfs fs.img files...\n");
     exit(1);
   }
-
+  unsigned long foo =  BSIZE % sizeof(struct dinode);
+    fprintf(stderr, "BSIZE mod DINODE  = %ld, %d, %ld\n", foo, BSIZE, sizeof(struct dinode));
+    
   assert((BSIZE % sizeof(struct dinode)) == 0);
   assert((BSIZE % sizeof(struct dirent)) == 0);
 

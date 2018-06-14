@@ -4,232 +4,301 @@
 #include "fs.h"
 
 
-int usage(void) {
-    printf(2, "Usage: find <path> <options> <tests>\n");
-    exit();
+int nameOn=0 , sizeOn=0, typeOn=0, tagOn=0, followOn=0, moreThen=0, lessThen=0;
+char *root_path, *name, tagKey[10], tagValue[30]; 
+char type;
+int size;
+
+void concatenate(char p[], char q[]) {
+   int c, d;
+ 
+   c = 0;
+ 
+   while (p[c] != '\0') {
+      c++;      
+   }
+ 
+   d = 0;
+ 
+   while (q[d] != '\0') {
+      p[c] = q[d];
+      d++;
+      c++;    
+   }
+ 
+   p[c] = '\0';
 }
 
-char*
-namefmt(char *path)
+void 
+parseTag(const char* arg, char *tagKey, char *tagValue){
+    int i=0;
+    while (arg[i] != '='){
+        if (arg[i] == '\0'){
+            printf(1,"Invalid use of type (no =)\n");
+            exit();
+        }
+        i++;
+    }
+    
+    if (i==0){
+        printf(1,"Invalid use of type (no key)\n");
+        exit();
+    }
+    
+    memmove((void*)tagKey, (void*)arg, i);
+    memmove( (void*)(tagKey+i), (void*)"\0", 1);
+    
+    int var_len= 0;
+    i++;
+    int value_start=i;
+    while (arg[i] != '\0'){
+        var_len++;
+        i++;
+    }
+    
+    if (var_len==0){
+        printf(1,"Invalid use of type (no value)\n");
+        exit();
+    }
+    
+    memmove((void*)tagValue, (void*)(&arg[value_start]), var_len);
+    memmove((void*)(tagValue + var_len), (void*)"\0", 1);
+    
+}
+
+
+void
+fmtname(char *path, char* curname)
 {
-    static char buf[DIRSIZ+1];
-    char *p;
+  char *p;
 
-    // Find first character after last slash.
-    for(p=path+strlen(path); p >= path && *p != '/'; p--)
-        ;
-    p++;
-
-    // Return blank-padded name.
-    if(strlen(p) >= DIRSIZ)
-        return p;
-    memmove(buf, p, strlen(p));
-    memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
-    return buf;
+  // Find first character after last slash.
+  for(p=path+strlen(path); p >= path && *p != '/'; p--)
+    ;
+  p++;
+  
+  int i=0;
+  while(p[i] != '\0'){
+    i++;
+  }
+  
+  memmove(curname, p, i+1);
 }
 
-static char fname[512];
-static int size;
-static char size_modifier;
-static char type;
-static int follow;
-static char key[10];
-static char val[30];
+void
+find(char *path)
+{
+  char buf[512], *p;
+  int fd;
+  struct dirent de;
+  struct stat st;
 
-
-int qualifies(int fd,struct stat st, char *name) {
-    char buf[30];
-
-    if ((fname[0] != 0) && (strcmp(fname, name) != 0))
-        return 0;
-    if (size != -1) {
-        switch(size_modifier) {
-        case 0: if (st.size != size) return 0;
-            break;
-        case '+' :  if (st.size <= size) return 0;
-            break;
-        case '-' :  if (st.size > size) return 0;
-            break;
-        default: break;
-        }
+  
+  /// try to open current path - if followOn deference symlinks
+  if (followOn){
+    if((fd = open(path, 0)) < 0){
+      printf(2, "find: cannot open %s\n", path);
+      return;
     }
-    switch (type) {
-    case 'd': if (st.type != T_DIR) return 0; break;
-    case 'f': if (st.type != T_FILE) return 0; break;
-    case 's': if ((st.type != T_FILE) || (st.symlink == 0)) return 0; break;
-    default : break;
-    }
-    if ((key[0] != 0) && (val[0] != 0)) {
-        DEBUG_PRINT(6,"key = %s , val = %s",key,val);
-        if (gettag(fd,key,buf) > 0) {
-            DEBUG_PRINT(6,"key = %s , val = %s, buf = %s",key,val,buf);
-            if (strcmp(val,"?") && strcmp(val,buf))
-                return 0;
-        }  else
-            {
-                DEBUG_PRINT(6,"return 0. key = %s , val = %s, buf = %s",key,val,buf);
-                return 0;
-            }
-
-    }
-    return 1;
-}
-
-int find(char* path, char *name) {
-    char buf[512], *p;
-    char sympath[512];
-    int fd;
-    struct dirent de;
-    struct stat st;
-
-    DEBUG_PRINT(7, "path = %s, follow = %d", path, follow);
-
-    if ((!follow) && (readlink(path, sympath, (uint)50) != -1)) {
-        /* "manually perform 'qualifies' for the file" */
-        DEBUG_PRINT(7, "local 'qualifies': readlink result = %d",
-                    readlink(path, sympath, (uint)50));
-        if ((fname[0] != 0) && (strcmp(fname, name) != 0))
-            return 0;
-        if (size != -1) {
-            switch(size_modifier) {
-            case 0: if (0 != size) return 0;
-                break;
-            case '+' :  if (0 <= size) return 0;
-                break;
-            case '-' :  if (0 > size) return 0;
-                break;
-            default: break;
-            }
-        }
-        switch (type) {
-        case 'd': return 0;
-        case 'f': return 0;
-        default : break;
-        }
-
-        printf(1, "%s\n", path);
-        return 0;
-    }
-
+      
+  }
+  else{
     if((fd = open(path, 0)) < 0){
         printf(2, "find: cannot open %s\n", path);
-        return -1;
+        return;
     }
+  }
 
-    DEBUG_PRINT(9, "fd ok", 999);
-
-    if(fstat(fd, &st) < 0){
-        printf(2, "find: cannot stat %s\n", path);
-        close(fd);
-        return -1;
-    }
-
-    DEBUG_PRINT(9, "stat ok", 999);
-
-    switch(st.type){
-    case T_FILE:
-        DEBUG_PRINT(5, "it's a file.name = %s", name);
-        if (qualifies(fd,st, name)) {
-            DEBUG_PRINT(5, "file qualifies, name = %s", name);
-            printf(1, "%s\n", path);
-        }
-        break;
-
-    case T_DIR:
-        DEBUG_PRINT(5, "it's a directory.", 999);
-        if(strlen(path) + 1 + DIRSIZ + 1 > sizeof buf){
-            printf(1, "find: path too long\n");
-            break;
-        }
-        if (readlink(path, sympath, sizeof(sympath)) != -1) {/* it is a symlink */
-            DEBUG_PRINT(8, "it's a link. sympath = %s", sympath);
-            strcpy(buf, sympath);
-        } else {
-            strcpy(buf, path);
-        }
-
-        if (qualifies(fd,st, namefmt(path))) {
-            DEBUG_PRINT(5, "DIR qualifies, path = %s", path);
-            printf(1, "%s\n", buf);
-        }
-        p = buf+strlen(buf);
-        *p++ = '/';
-
-        while(read(fd, &de, sizeof(de)) == sizeof(de)){
-            if(de.inum == 0)
-                continue;
-            memmove(p, de.name, DIRSIZ);
-            p[DIRSIZ] = 0;
-
-            if (de.name[0] == '.') /* don't loop yourself to death
-                                      with '.' and '..' */
-                continue;
-            if (follow && readlink(buf, sympath, 50) != -1) {/* it is a symlink */
-                DEBUG_PRINT(8, "it's a link according to readlink", 999);
-                find(sympath, namefmt(sympath));
-            } else {
-                DEBUG_PRINT(8, "NOT a link according to readlink. buf = %s",
-                            buf);
-                find(buf, de.name);
-            }
-        }
-        break;
-    }
+  /// get status of inode
+  if(fstat(fd, &st) < 0){
+    printf(2, "find: cannot stat %s\n", path);
     close(fd);
-    return 0;
-}
+    return;
+  }
 
-int main(int argc, char *argv[])
-{
+  char file_name[100];
+  
+  /// get name
+  fmtname(path, file_name);
+  
+  /// according to parameters check if there is a need to print this fd
+  int print = 1;
+  if (print && nameOn){
+    print = ( strcmp(file_name, name) == 0 );
+  }
+    
+  if (print && sizeOn){
+    if (moreThen)
+      print = (st.size > size);
+    else if(lessThen)
+      print = (st.size < size);
+    else
+      print = (st.size == size);
+  }
+    
+  if (print && tagOn){
+    char tempvalue[30];
+    int status = gettag(fd, tagKey, tempvalue);
+    print =  ( status == 0 && ( strcmp(tagValue,"?") == 0 || (strcmp(tempvalue,tagValue) == 0 ) ) );
+  }
 
-    int i;
-    char *dlimiter;
-    fname[0] = 0;
-    size = -1;			/* initial (null) value */
-    size_modifier = 0;
-    type = 0;
-    follow = 0;
-    key[0] = 0;
-    val[0] = 0;
-
-    if (argc == 1)
-        usage();
-
-    if (!(strcmp(argv[1], "-help")) || !(strcmp(argv[2], "-help")))
-        usage();
-
-    if (!(strcmp(argv[2], "-follow")))
-        follow = 1;		/* follow symlinks */
-
-    for (i = 2 + follow; i < argc; i += 2) {
-        if (!(strcmp(argv[i], "-name")))
-            strcpy(fname, argv[i+1]);
-        else if (!(strcmp(argv[i], "-size"))){
-            switch(argv[i+1][0]) {
-            case '+': size_modifier = '+'; size = atoi(&argv[i+1][1]); break;
-            case '-': size_modifier = '-'; size = atoi(&argv[i+1][1]); break;
-            default:  size_modifier = 0; size = atoi(&argv[i+1][0]); break;
-            }
-        } else if (!(strcmp(argv[i], "-type"))) {
-            switch (argv[i+1][0]) {
-            case 'd': type = 'd'; break;
-            case 'f': type = 'f'; break;
-            case 's': type = 's'; break;
-            default: printf(2, "illegal file type: %s\n", argv[i+1]); return -1;
-            }
-        } else if (!(strcmp(argv[i], "-tag"))) {
-            dlimiter=strchr(argv[i+1],'=');
-            *dlimiter = 0;
-            strcpy(key,argv[i+1]);
-            strcpy(val,dlimiter+1);
-            *dlimiter = '=';
-            DEBUG_PRINT(6,"tag is: argv[i+1] = %s, key = %s, val = %s ",argv[i+1],key,val);
-        }
-
-
+  switch(st.type){
+  /// if a file only check type
+  case T_FILE:
+    if (print && typeOn){
+        print = (type == 'f');
     }
-    DEBUG_PRINT(9, "fname = %s, size = %d, size_modifier = %s, type = %s",
-                fname, size, size_modifier, type);
-    find(argv[1], namefmt(argv[1]));
-    exit();
+    break;
+  
+  /// if a symlink ??
+  case T_SYMLINK:
+    if (print && typeOn){
+        print = (type == 's');
+    }
+    break;
+
+  /// if directory check type and enter find recursively on all childs
+  case T_DIR:
+    if (print && typeOn){
+        print = (type == 'd');
+    }
+    
+    if(strlen(path) + 1 + DIRSIZ + 1 > sizeof buf){
+      printf(1, "find: path too long\n");
+      break;
+    }
+    strcpy(buf, path);
+    p = buf+strlen(buf);
+    *p++ = '/';
+    
+    char concatenatePath[100];
+    memmove(concatenatePath, path, strlen(path));
+    /// loop on all childs
+    while(read(fd, &de, sizeof(de)) == sizeof(de)){
+      if(de.inum == 0)
+        continue;
+      
+      concatenatePath[strlen(path)]=0;
+      memmove(p, de.name, DIRSIZ);
+      p[DIRSIZ] = 0;
+      
+      
+      
+      /// enter recursive only if not cur dir or parent dir
+      if (strcmp(p,".")!= 0 && strcmp(p,"..")!=0 ){
+          if ( strcmp(path, "/") != 0 )
+            concatenate(concatenatePath, "/");
+          concatenate(concatenatePath, p);
+          
+          find(concatenatePath);
+      }
+    }
+    break;
+  }
+  
+  if(print){
+    printf(1, "%s\n", path);
+  }
+  
+  close(fd);
 }
+
+int
+main(int argc, char *argv[])
+{
+    int i;
+    if (argc < 2 || argv[1][0] == '-'){
+        printf(1,"Invalid use of find\n");
+        exit();
+    }
+
+    root_path= argv[1];
+
+    
+    /// parse arguments
+    for (i=2; i < argc ; i++){
+        if (strcmp(argv[i], "-follow") == 0){
+            followOn=1;
+        }
+        else if (strcmp(argv[i], "-name") == 0){
+            nameOn=1;
+            
+            i++;
+            if (i >= argc || argv[i][0] == '-'){
+                printf(1,"parameter name without value\n");
+                exit();
+            }
+            name = argv[i];
+        }
+        else if (strcmp(argv[i], "-size") == 0){
+            sizeOn=1;
+            
+            i++;
+            if (i >= argc){
+                printf(1,"parameter size without value\n");
+                exit();
+            }
+            
+            if(argv[i][0] == '+'){
+                moreThen=1;
+                size = atoi(argv[i] + 1);
+            }
+            else if(argv[i][0] == '-'){
+                lessThen=1;
+                size = atoi(argv[i] + 1);
+            }
+            else{
+                int j;
+                for (j=0; j< strlen(argv[i]) ; j++){
+                    if (argv[i][j] < '0' || argv[i][j] > '9' ) {
+                        printf(1,"invalid size: %s\n",argv[i]);
+                        exit();
+                    }
+                        
+                }
+                size = atoi(argv[i]);
+            }
+        }
+        else if (strcmp(argv[i], "-type") == 0){
+            typeOn=1;
+            
+            i++;
+            if (i >= argc || argv[i][0] == '-'){
+                printf(1,"parameter type without value\n");
+                exit();
+            }
+            if ( ! (strcmp(argv[i],"d")==0 || strcmp(argv[i],"f")==0  || strcmp(argv[i],"s")==0 ) ){
+                printf(1,"Invalid type: %s\n", argv[i]);
+                exit();
+            }
+            type= argv[i][0];
+        }
+        else if (strcmp(argv[i], "-tag") == 0){
+            tagOn=1;
+            
+            i++;
+            if (i >= argc || argv[i][0] == '-'){
+                printf(1,"parameter tag without value\n");
+                exit();
+            }
+            parseTag(argv[i], tagKey, tagValue);
+            
+        }
+        else{
+            printf(1,"Invalid parameter: %s\n" , argv[i]);
+            exit();
+        }
+    }
+    
+    /*
+    printf(1, "path: %s\n", root_path);
+    if (followOn) printf(1, "follow\n");
+    if (nameOn) printf(1, "name: %s\n", name);
+    if (sizeOn) printf(1, "size: %s%s %d\n", moreThen? "more then" : "", lessThen? "less then" : "", size);
+    if (typeOn) printf(1, "type: %c\n", type);
+    if (tagOn) printf(1, "tag key: %s, tag value: %s\n", tagKey, tagValue);
+    */
+    
+    find(root_path);
+    exit();
+} 
