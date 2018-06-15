@@ -699,152 +699,147 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
 int
 fs_ftag(struct file *file_ptr, char *key, char *val) {
 
-    struct inode *ip;
-    struct buf *bp;
-    int i, j;
-    int empty;
+  if (strlen(key) > 10 || strlen(key) > 30) {
+    return -1;
+  }
+  struct inode *ip;
+  struct buf *bp;
+  int i, j;
+  int empty;
 
-    empty = -1;
-    ip = file_ptr->ip;
-    ilock(ip);
+  empty = -1;
+  ip = file_ptr->ip;
+  ilock(ip);
 
-    if ((ip->tags_counter == 0) && (ip->tags == 0)) {        
-        ip->tags = balloc(ip->dev);
+  if ((ip->tags_counter == 0) && (ip->tags == 0)) {
+      ip->tags = balloc(ip->dev);
+  }
+
+  bp = bread(ip->dev, ip->tags);
+
+  i = 0;
+  j = 0;
+  while (i < ip->tags_counter) {
+    if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
+      !(memcmp(key, &(bp->data[j]), strlen(key)))) {
+      memset(&bp->data[j+10], 0, 30);
+      memmove(&bp->data[j+10], val, strlen(val));
+      ip->tags_counter++;
+      log_write(bp);
+      brelse(bp);
+      iupdate(ip);
+      iunlock(ip);
+      return 0;
     }
-
-    bp = bread(ip->dev, ip->tags);
-
-    i = 0;
-    j = 0;
-    while (i < ip->tags_counter) {
-        if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
-            !(memcmp(key, &(bp->data[j]), strlen(key)))) {
-            memset(&bp->data[j+10], 0, 30);
-            memmove(&bp->data[j+10], val, strlen(val));
-            ip->tags_counter++;
-            log_write(bp);
-            brelse(bp);
-            iupdate(ip);
-            iunlock(ip);
-            return 0;
-        }
-        if (bp->data[j] == 0) {
-            if (empty == -1)
-                empty = j;
-            i--;
-        }
-        i++;
-        j += 40;
-    }
-
-    if (empty == -1)
+    if (bp->data[j] == 0) {
+      if (empty == -1)
         empty = j;
+      i--;
+    }
+    i++;
+    j += 40;
+  }
 
+  if (empty == -1)
+    empty = j;
 
-    memset(&bp->data[empty], 0, 40);
-    memmove(&bp->data[empty], key, strlen(key));
-    memmove(&bp->data[empty+10], val, strlen(val));
-    ip->tags_counter++;
-    log_write(bp);
-    brelse(bp);
-    iupdate(ip);
-    iunlock(ip);
-    return 0;
-
-
-
+  memset(&bp->data[empty], 0, 40);
+  memmove(&bp->data[empty], key, strlen(key));
+  memmove(&bp->data[empty+10], val, strlen(val));
+  ip->tags_counter++;
+  log_write(bp);
+  brelse(bp);
+  iupdate(ip);
+  iunlock(ip);
+  return 0;
 }
 
-//A&T
 int fs_funtag(struct file *file_ptr, char* key) {
-    struct inode *ip;
-    struct buf *bp;
-    int i, j;
+  struct inode *ip;
+  struct buf *bp;
+  int i, j;
 
-    ip = file_ptr->ip;
-    ilock(ip);
+  ip = file_ptr->ip;
+  ilock(ip);
 
-    if ((ip->tags_counter == 0) || (ip->tags == 0)) {        
-        iunlock(ip);
-        return -1;
+  if ((ip->tags_counter == 0) || (ip->tags == 0)) {
+      iunlock(ip);
+      return -1;
+  }
+
+  bp = bread(ip->dev, ip->tags);
+
+  i = 0;
+  j = 0;
+  while (i < ip->tags_counter) {
+    if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
+      !(memcmp(key, &(bp->data[j]), strlen(key)))) {
+      memset(&bp->data[j], 0, 40);
+
+      ip->tags_counter--;
+      log_write(bp);
+      brelse(bp);
+      iupdate(ip);
+      iunlock(ip);
+      return 0;
     }
+    if (bp->data[j] == 0)
+      i--;
 
-    bp = bread(ip->dev, ip->tags);
+    i++;
+    j += 40;
+  }
 
-    i = 0;
-    j = 0;
-    while (i < ip->tags_counter) {
-        if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
-            !(memcmp(key, &(bp->data[j]), strlen(key)))) {
-            memset(&bp->data[j], 0, 40);                  
-                                                           
-            ip->tags_counter--;
-            log_write(bp);
-            brelse(bp);
-            iupdate(ip);
-            iunlock(ip);
-            return 0;
-        }
-        if (bp->data[j] == 0)
-            i--;
-
-        i++;
-        j += 40;
-    }
-
-    brelse(bp);
-    iunlock(ip);
-    return -1;
+  brelse(bp);
+  iunlock(ip);
+  return -1;
 }
 
 
 int
 fs_gettag(struct file *file_ptr,char *key,char *buf) {
-    struct inode *ip;
-    struct buf *bp;
-    int i, j;
+  struct inode *ip;
+  struct buf *bp;
+  int i, j;
 
+  ip = file_ptr->ip;
+  ilock(ip);
 
-    ip = file_ptr->ip;
-    ilock(ip);
-
-  
-
-    if ((ip->tags_counter == 0) || (ip->tags == 0)) {
-        /* first tag */
-        iunlock(ip);
-        return -1;
-    }
- 
-
-    bp = bread(ip->dev, ip->tags);
-    i = 0;
-    j = 0;
-    while (i < ip->tags_counter) {
-       
-        if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
-            !(memcmp(key, &(bp->data[j]), strlen(key)))) {
-            memmove(buf,&bp->data[j+10], 30);                  
-                                                             
-            log_write(bp);
-            brelse(bp);
-            iupdate(ip);
-            iunlock(ip);
-            return strlen(buf);
-        }
-        if (bp->data[j] == 0)
-            i--;
-
-        i++;
-        j += 40;
-    }
-
-    log_write(bp);
-    brelse(bp);
-    iupdate(ip);
+  if ((ip->tags_counter == 0) || (ip->tags == 0)) {
+    /* first tag */
     iunlock(ip);
     return -1;
+  }
+
+  bp = bread(ip->dev, ip->tags);
+  i = 0;
+  j = 0;
+  while (i < ip->tags_counter) {
+
+    if ((strlen(key) == strlen((char*)(&bp->data[j]))) &&
+      !(memcmp(key, &(bp->data[j]), strlen(key)))) {
+      memmove(buf,&bp->data[j+10], 30);
+
+      log_write(bp);
+      brelse(bp);
+      iupdate(ip);
+      iunlock(ip);
+      return strlen(buf);
+    }
+    if (bp->data[j] == 0)
+      i--;
+
+    i++;
+    j += 40;
+  }
+
+  log_write(bp);
+  brelse(bp);
+  iupdate(ip);
+  iunlock(ip);
+  return -1;
 }
