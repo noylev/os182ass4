@@ -26,7 +26,7 @@ int checkuntag(int fd,char* key)
     return 1;
   }
   else {
-    if(DEBUG) {
+    if (DEBUG) {
       printf(2, "untagging key = %s failed \n",key);
     }
     return 0;
@@ -55,8 +55,8 @@ int main(int argc, char *argv[])
     int fd;
 
     if ((fd = open("find", O_CREATE | O_RDWR)) < 0) {
-        printf(2,"open failed\n");
-        exit();
+      printf(2,"open failed\n");
+      exit();
     }
     int expected[RESULT_LIMIT] = {1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -100,8 +100,7 @@ int main(int argc, char *argv[])
     close(fd);
 
     int failed = 0;
-
-    for (int index= 0; index != result_index; index++) {
+    for (int index = 0; index != result_index; index++) {
       if (results[index] != expected[index]) {
         // Failed.
         failed++;
