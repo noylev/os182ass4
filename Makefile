@@ -175,7 +175,6 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_sanity\
-	_fsan\
 	_find\
 	_ftag\
 
